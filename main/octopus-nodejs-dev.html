@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style type="text/css">
+html, body {
+	font-family: "Segoe UI", Helvetica, Sans;
+	height: 100%;
+	margin: 0;
+	width: 100%;
+}
+.tabbed-panel {
+	box-sizing: border-box;
+	height: 100%;
+	padding-left: 16em;
+	position: relative;
+	width: 100%;
+}
+.tabbed-panel > .tabs {
+	position: absolute;
+	left: 0;
+	height: 100%;
+	width: 16em;
+}
+.tabbed-panel > .tabs > .create {
+	box-sizing: border-box;
+	margin: 0.5em 0 0.5em 0;
+	width: 100%;
+}
+.tabbed-panel > .tabs > .tab {
+	box-sizing: border-box;
+	padding: 0.5em 1em;
+	position: relative;
+	width: 100%;
+}
+.tabbed-panel > .tabs > .tab > .delete {
+	background: lightgray;
+	border: solid 1px gray;
+	padding: 0;
+	position: absolute;
+	margin: 0 1em 0 0;
+	right: 0;
+}
+.tabbed-panel > .tabs > .tab > .input {
+	border: none;
+	box-sizing: border-box;
+	padding: 0;
+	width: 100%;
+}
+.tabbed-panel > .tabs > .tab[selected] {
+	background: lightgray;
+}
+
+.textarea {
+	box-sizing: border-box;
+	height: 100%;
+	margin: 0;
+	resize: none;
+	width: 100%;
+}
+</style>
+<script type="text/javascript">
+
+function saveProject() { localStorage.setItem("project", JSON.stringify(project)); }
+
+function instantiateTabbedPanel(parentElement) {
+
+	function createEndpoint() {
+		project.endpoints.push({
+			"id":"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+				.replace(/[x]/g, c=>(16*Math.random()|0).toString())
+				.replace(/[y]/g, c=>(4*Math.random()*4&3|8).toString()),
+			"name":"new"
+		});
+		saveProject();
+		refresh(currentTabIndex);
+	}
+
+	function deleteEndpoint(endpointIndex) {
+		if(project.endpoints[endpointIndex]!==undefined) {
+			setSelectedTabIndex(-1);
+			project.endpoints.splice(endpointIndex, 1);
+			saveProject();
+			refresh(endpointIndex-1);
+		}
+	}
+
+	function refresh(endpointIndex) {
+		while(elements.tabs.lastChild!==null)
+			elements.tabs.removeChild(elements.tabs.lastChild);
+		const button=document.createElement("button");
+		button.className="create";
+		button.textContent="create";
+		button.onclick=event=>createEndpoint();
+		elements.tabs.appendChild(button);
+		for(const endpoint of project.endpoints) {
+			const tab=document.createElement("div");
+			tab.className="tab";
+			tab.onclick=event=>setSelectedTabIndex(project.endpoints.indexOf(endpoint));
+			const input=document.createElement("input");
+			input.className="input";
+			input.value=endpoint.name;
+			input.onchange=event=>{
+				endpoint.name=input.value;
+				saveProject();
+			};
+			tab.appendChild(input);
+			const button=document.createElement("button");
+			button.className="delete";
+			button.textContent="delete";
+			button.onclick=event=>{
+				event.stopPropagation();
+				if(confirm("Delete endpoint ?"))
+					deleteEndpoint(project.endpoints.indexOf(endpoint));
+			};
+			tab.appendChild(button);
+			elements.tabs.appendChild(tab);
+		}
+		setSelectedTabIndex(endpointIndex<project.endpoints.length ? endpointIndex : -1);
+	}
+
+	let currentTabIndex=-1;
+	function setSelectedTabIndex(selectedTabIndex) {
+		if(selectedTabIndex!==currentTabIndex) {
+			if(currentTabIndex!==-1) {
+				elements.tabs.childNodes[currentTabIndex+1].removeAttribute("selected");
+				elements.element.removeChild(elements.element.childNodes[1]);
+			}
+			currentTabIndex=selectedTabIndex;
+			if(currentTabIndex!==-1) {
+				elements.tabs.childNodes[currentTabIndex+1].setAttribute("selected", "");
+				elements.element.appendChild(instantiateTextEditor(project.endpoints[currentTabIndex].id));
+			}
+		}
+	}
+
+	const elements={};
+	const tabs=[];
+	elements.element=document.createElement("div");
+	elements.element.className="tabbed-panel";
+	parentElement.appendChild(elements.element);
+	elements.tabs=document.createElement("div");
+	elements.tabs.className="tabs";
+	elements.element.appendChild(elements.tabs);
+	refresh(0);
+}
+
+function instantiateTextEditor(uuid) {
+	const textarea=document.createElement("textarea");
+	textarea.value=localStorage.getItem(uuid);
+	textarea.className="textarea";
+	textarea.onkeydown=function(event) {
+		if(event.keyCode===9) // tab
+			try {
+				const value=textarea.value;
+				const index=textarea.selectionStart;
+				textarea.value=value.substring(0, index)+"\t"+value.substring(textarea.selectionEnd);
+				textarea.selectionStart=index+1;
+				textarea.selectionEnd=index+1;
+			} finally {
+				event.preventDefault();
+				return false;
+			}
+		if(!event.ctrlKey&&event.keyCode===116) // F5
+			try {
+				localStorage.setItem(uuid, textarea.value);
+				JSON.parse(textarea.value);
+				const request=new XMLHttpRequest();
+				request.open("POST", window.location.href);
+				request.onreadystatechange=function(event) {
+					if(request.readyState!==4)
+						return;
+					if(request.status!==200) {
+						alert(request.status);
+						return;
+					}
+					alert(request.response);
+				};
+				request.send(textarea.value);
+			} catch(error) {
+				alert(error);
+			} finally {
+				return false;
+			}
+		if(event.ctrlKey&&event.keyCode===83) // save
+			try {
+				localStorage.setItem(uuid, textarea.value);
+			} finally {
+				return false;
+			}
+	};
+	return textarea;
+}
+
+if(localStorage.getItem("project")===null)
+	localStorage.setItem("project", "{}");
+const project=JSON.parse(localStorage.getItem("project"));
+if(project.endpoints===undefined)
+	project.endpoints=[];
+project.endpoints.sort((a, b)=>a.name.localeCompare(b.name));
+
+window.onload=function() {
+	window.onkeydown=function(event) {
+		/* prevents F5 to refresh the page. */
+		if(!event.ctrlKey&&event.keyCode===116) {
+			event.preventDefault();
+			event.stopPropagation();
+			return false;
+		}
+		/* prevents ctrl+S to open the save popup. */
+		if(event.ctrlKey&&event.keyCode===83) {
+			event.preventDefault();
+			event.stopPropagation();
+			return false;
+		}
+	};
+
+	instantiateTabbedPanel(document.body);
+};
+</script>
+<body>
+</body>
+</html>

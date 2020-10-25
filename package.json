@@ -1,0 +1,22 @@
+{
+  "name": "octopus-nodejs-dev",
+  "version": "1.0.0",
+  "description": "",
+  "main": "node.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "@mysql/xdevapi": "^8.0.22",
+    "chai": "^4.2.0",
+    "mysql": "^2.18.1"
+  },
+  "devDependencies": {
+    "mocha": "^8.2.0"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "author": "Samuel Mercier",
+  "license": "LGPL-2.1"
+}
